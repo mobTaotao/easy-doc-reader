@@ -51,6 +51,59 @@
   margin: 0 4px;
 }
 
+/* JSON 阅读栏 */
+.json-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 18px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.json-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.json-hint.invalid {
+  color: #b4543f;
+}
+
+.json-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.json-host {
+  padding: 14px 18px 60px;
+}
+
+.json-host .cm-editor {
+  height: auto;
+}
+
+.json-host .cm-scroller {
+  overflow: visible;
+}
+
+/* JSON 模式下的编辑工具栏：隐藏 Markdown 专用按钮 */
+.edit-toolbar .json-only {
+  display: none;
+}
+
+.edit-toolbar.json-mode .json-only {
+  display: inline-block;
+}
+
+.edit-toolbar.json-mode button[data-cmd] {
+  display: none;
+}
+
 .edit-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

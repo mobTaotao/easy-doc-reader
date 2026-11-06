@@ -21,14 +21,14 @@ const browserState = {
   files: new Map<string, any>(),
 };
 
-const MD_PATTERN = /\.(md|markdown|mdown|mkd|txt)$/i;
+const MD_PATTERN = /\.(md|markdown|mdown|mkd|txt|json)$/i;
 
 /** 不支持 File System Access API 时（如直接双击打开的本地 HTML）回退到 input[type=file] */
 function pickWithInput(): Promise<string | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".md,.markdown,.mdown,.mkd,.txt,text/markdown";
+    input.accept = ".md,.markdown,.mdown,.mkd,.txt,.json";
     input.style.display = "none";
     document.body.append(input);
 
@@ -68,7 +68,7 @@ export async function openFileDialog(): Promise<string | null> {
     const selected = await open({
       multiple: false,
       directory: false,
-      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd", "txt"] }],
+      filters: [{ name: "Markdown / JSON", extensions: ["md", "markdown", "mdown", "mkd", "txt", "json"] }],
     });
     return typeof selected === "string" ? selected : null;
   }
@@ -176,11 +176,34 @@ export async function saveFileDialog(defaultName: string): Promise<string | null
     const { save } = await import("@tauri-apps/plugin-dialog");
     const selected = await save({
       defaultPath: defaultName,
-      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd", "txt"] }],
+      filters: [{ name: "Markdown / JSON", extensions: ["md", "markdown", "mdown", "mkd", "txt", "json"] }],
     });
     return typeof selected === "string" ? selected : null;
   }
   return null;
+}
+
+/** 重命名文件（仅同目录），返回新完整路径。 */
+export async function renameFile(oldPath: string, newName: string): Promise<string> {
+  if (isTauri()) return invoke<string>("rename_file", { oldPath, newName });
+
+  const handle = browserState.files.get(oldPath);
+  const parent = oldPath.slice(0, oldPath.lastIndexOf("/"));
+  const newPath = `${parent}/${newName}`;
+  if (handle) {
+    browserState.files.delete(oldPath);
+    browserState.files.set(newPath, handle);
+  }
+  return newPath;
+}
+
+/** 删除文档文件。 */
+export async function deleteFile(path: string): Promise<void> {
+  if (isTauri()) {
+    await invoke("delete_file", { path });
+    return;
+  }
+  browserState.files.delete(path);
 }
 
 export function resolveAssetUrl(absolutePath: string): string {

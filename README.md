@@ -5,6 +5,8 @@
 ## 功能（一期）
 
 - 打开文件夹 / 文件，左侧懒加载文件树
+- 侧栏右键：重命名 / 删除 / 新建 Markdown（保持目录展开）
+- **JSON 支持**：默认美化高亮展示（可切原文 / 复制），编辑 + 工具栏 `美化` / `压缩`，保存前校验
 - GFM 渲染：表格、任务列表、代码高亮、引用、图片
 - 亮色 / 暗色 / 跟随系统主题（`Ctrl + J` 切换）
 - 外部编辑保存后自动刷新阅读视图
@@ -36,7 +38,9 @@
 ```powershell
 npm install
 npm run dev            # 仅前端（浏览器预览：http://localhost:5173/?demo=1）
-npm run tauri dev      # 桌面应用开发模式
+scripts\dev.cmd        # 桌面应用热重载（自动注入 MSVC/SDK 环境变量）
+npm run tauri dev      # 同上（需在 Developer PowerShell 中）
+cargo test             # Rust 后端逻辑单测
 ```
 
 ## 构建安装包

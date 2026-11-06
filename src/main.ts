@@ -11,6 +11,7 @@ import { Editor } from "./editor/Editor";
 import { renderMarkdown } from "./markdown/render";
 import {
   createFile,
+  deleteFile,
   fileMtime,
   isTauri,
   markDropHint,
@@ -19,10 +20,12 @@ import {
   openFolderDialog,
   readFile,
   registerDropHandler,
+  renameFile,
   resolveAssetUrl,
   saveFileDialog,
   writeFile,
 } from "./api/backend";
+import { destroyJsonViewer, formatJson, mountJsonViewer } from "./json/jsonView";
 import { basename, countText, dirname, joinPath } from "./utils";
 import { SAMPLE_MARKDOWN } from "./sample";
 
@@ -33,7 +36,10 @@ const LAST_FILE_KEY = "mdreader.lastFile";
 const LAST_ROOT_KEY = "mdreader.lastRoot";
 const AUTOSAVE_KEY = "mdreader.autosave";
 const DRAFT_PREFIX = "mdreader.draft:";
-const MARKDOWN_LINK = /\.(md|markdown|mdown|mkd|txt)(#.*)?$/i;
+const MARKDOWN_LINK = /\.(md|markdown|mdown|mkd|txt|json)(#.*)?$/i;
+const DOC_EXT = /\.(md|markdown|mdown|mkd|txt|json)$/i;
+
+const isJsonPath = (path: string | null): boolean => Boolean(path && /\.json$/i.test(path));
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -60,6 +66,12 @@ const ui = {
   btnNew: byId<HTMLButtonElement>("btn-new"),
   btnAutosave: byId<HTMLButtonElement>("btn-autosave"),
   btnPreviewToggle: byId<HTMLButtonElement>("btn-preview-toggle"),
+  jsonBar: byId<HTMLDivElement>("json-bar"),
+  jsonHint: byId<HTMLSpanElement>("json-hint"),
+  btnJsonToggle: byId<HTMLButtonElement>("btn-json-toggle"),
+  btnJsonCopy: byId<HTMLButtonElement>("btn-json-copy"),
+  btnBeautify: byId<HTMLButtonElement>("btn-beautify"),
+  btnMinify: byId<HTMLButtonElement>("btn-minify"),
   toast: byId<HTMLDivElement>("toast"),
 };
 
@@ -78,6 +90,7 @@ const state = {
   autosaveTimer: 0,
   draftTimer: 0,
   previewScrollStamp: 0,
+  jsonShowRaw: false,
 };
 
 const editor = new Editor(ui.editorHost);
@@ -90,7 +103,11 @@ function toast(message: string): void {
   toastTimer = window.setTimeout(() => ui.toast.classList.remove("show"), 2600);
 }
 
-const sidebar = new Sidebar(ui.tree, (path) => void openFile(path), toast);
+const sidebar = new Sidebar(ui.tree, (path) => void openFile(path), toast, {
+  rename: (path, newName) => void handleRename(path, newName),
+  remove: (path) => void handleDelete(path),
+  create: (dir) => void newFile(dir),
+});
 
 function slugify(text: string): string {
   return text
@@ -110,11 +127,50 @@ function paint(content: string, path: string): void {
   ui.empty.hidden = true;
   ui.viewer.hidden = false;
   ui.btnEdit.hidden = false;
-  ui.viewer.innerHTML = renderMarkdown(content);
-  decorate(ui.viewer, path);
   ui.scroll.scrollTop = 0;
   state.currentContent = content;
+
+  if (isJsonPath(path)) {
+    state.jsonShowRaw = false;
+    renderJson(content);
+  } else {
+    ui.jsonBar.hidden = true;
+    destroyJsonViewer();
+    ui.viewer.innerHTML = renderMarkdown(content);
+    decorate(ui.viewer, path);
+  }
+
   updateStatusMeta(content);
+}
+
+/** 阅读模式渲染 JSON：默认美化展示，可切回原文 */
+function renderJson(raw: string): void {
+  const result = formatJson(raw, false);
+  const display = state.jsonShowRaw || !result.ok ? raw : (result.value ?? raw);
+
+  mountJsonViewer(ui.viewer, display, result.ok);
+  ui.jsonBar.hidden = false;
+  ui.jsonHint.textContent = result.ok ? "合法 JSON · 已格式化展示" : `解析失败：${result.error}`;
+  ui.jsonHint.classList.toggle("invalid", !result.ok);
+  ui.btnJsonToggle.textContent = state.jsonShowRaw ? "美化展示" : "查看原文";
+  ui.btnJsonToggle.disabled = !result.ok;
+}
+
+function toggleJsonRaw(): void {
+  if (!isJsonPath(state.currentPath)) return;
+  state.jsonShowRaw = !state.jsonShowRaw;
+  renderJson(state.currentContent);
+}
+
+async function copyJson(): Promise<void> {
+  const result = formatJson(state.currentContent, false);
+  const text = state.jsonShowRaw || !result.ok ? state.currentContent : (result.value ?? state.currentContent);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("已复制当前 JSON");
+  } catch {
+    toast("复制失败，请手动选择复制");
+  }
 }
 
 function decorate(container: HTMLElement, filePath: string): void {
@@ -188,6 +244,7 @@ function draftKey(path: string): string {
 }
 
 function renderPreview(text: string): void {
+  if (isJsonPath(state.currentPath)) return;
   ui.editViewer.innerHTML = renderMarkdown(text);
   if (state.currentPath) decorate(ui.editViewer, state.currentPath);
 }
@@ -256,14 +313,20 @@ function loadIntoEditor(path: string, content: string, mtime: number): void {
   state.savedText = content;
   state.editorDirty = text !== content;
 
-  editor.open(text);
+  const json = isJsonPath(path);
+  editor.open(text, json ? "json" : "markdown");
   editor.onChange(onEditorChange);
   editor.onSave(() => void saveEdit());
   editor.onExit(() => void setEditMode(false));
 
-  renderPreview(text);
+  // JSON 不需要 Markdown 预览，保持单栏编辑
+  ui.editToolbar.classList.toggle("json-mode", json);
+  ui.btnPreviewToggle.hidden = json;
+  ui.editSplit.classList.toggle("collapsed", json || state.previewCollapsed);
+
+  if (!json) renderPreview(text);
   updateStatusMeta(text);
-  bindEditorScroll();
+  if (!json) bindEditorScroll();
   editor.focus();
 }
 
@@ -273,16 +336,21 @@ async function saveEdit(force = false): Promise<boolean> {
 
   const text = editor.getText();
 
+  if (isJsonPath(path) && !force) {
+    const check = formatJson(text, false);
+    if (!check.ok) {
+      const proceed = window.confirm(`JSON 格式错误：\n${check.error}\n\n仍要保存吗？`);
+      if (!proceed) return false;
+    }
+  }
+
   try {
     const mtime = await writeFile(path, text, force ? null : state.currentMtime);
     state.currentMtime = mtime;
     state.savedText = text;
     state.editorDirty = false;
-    state.currentContent = text;
     localStorage.removeItem(draftKey(path));
-    ui.viewer.innerHTML = renderMarkdown(text);
-    decorate(ui.viewer, path);
-    updateStatusMeta(text);
+    paint(text, path);
     toast(isTauri() ? "已保存" : "已导出下载");
     return true;
   } catch (error) {
@@ -325,6 +393,8 @@ async function saveEditAs(): Promise<void> {
     document.title = `${basename(target)} · MD Reader`;
     sidebar.setActive(target);
     paint(text, target);
+    // 扩展名可能在保存时变化（md ↔ json），重建编辑器以匹配语法与工具栏
+    loadIntoEditor(target, text, mtime);
     toast("已另存为 " + basename(target));
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
@@ -357,6 +427,8 @@ async function setEditMode(on: boolean): Promise<void> {
   ui.editPane.hidden = true;
   ui.scroll.hidden = false;
   ui.btnEdit.textContent = "编辑";
+  ui.editToolbar.classList.remove("json-mode");
+  ui.btnPreviewToggle.hidden = false;
 
   const path = state.currentPath;
   if (path) {
@@ -370,12 +442,12 @@ async function setEditMode(on: boolean): Promise<void> {
   }
 }
 
-async function newFile(): Promise<void> {
+async function newFile(targetDir?: string): Promise<void> {
   if (!isTauri()) {
     toast("免安装版不支持新建文件，请使用桌面版");
     return;
   }
-  const dir = state.currentPath ? dirname(state.currentPath) : localStorage.getItem(LAST_ROOT_KEY);
+  const dir = targetDir ?? (state.currentPath ? dirname(state.currentPath) : localStorage.getItem(LAST_ROOT_KEY));
   if (!dir) {
     toast("请先打开一个文件夹");
     return;
@@ -386,7 +458,10 @@ async function newFile(): Promise<void> {
 
   try {
     const path = await createFile(dir);
-    await openFolderPath(dir);
+    const root = localStorage.getItem(LAST_ROOT_KEY);
+    if (root && root === dir) await sidebar.refresh();
+    else await openFolderPath(dir);
+
     state.mode = "edit";
     ui.scroll.hidden = true;
     ui.editPane.hidden = false;
@@ -397,6 +472,103 @@ async function newFile(): Promise<void> {
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
+}
+
+/* ---------------- 文件重命名与删除 ---------------- */
+
+async function handleRename(path: string, newName: string): Promise<void> {
+  if (!DOC_EXT.test(newName)) {
+    toast("扩展名必须是 md / txt / json");
+    return;
+  }
+
+  const isCurrent = state.currentPath === path;
+  if (isCurrent && state.mode === "edit" && state.editorDirty) {
+    toast("请先保存或放弃未保存的修改，再重命名");
+    return;
+  }
+
+  try {
+    const newPath = await renameFile(path, newName);
+
+    const draft = localStorage.getItem(draftKey(path));
+    if (draft !== null) {
+      localStorage.removeItem(draftKey(path));
+      localStorage.setItem(draftKey(newPath), draft);
+    }
+
+    if (isCurrent) {
+      state.currentPath = newPath;
+      ui.docTitle.textContent = basename(newPath);
+      ui.docTitle.title = newPath;
+      ui.statusPath.textContent = newPath;
+      document.title = `${basename(newPath)} · MD Reader`;
+      localStorage.setItem(LAST_FILE_KEY, newPath);
+      sidebar.setActive(newPath);
+      paint(state.currentContent, newPath);
+    }
+
+    await sidebar.refresh();
+    toast("已重命名为 " + newName);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function handleDelete(path: string): Promise<void> {
+  if (!window.confirm(`确定删除「${basename(path)}」吗？此操作不可撤销。`)) return;
+
+  const isCurrent = state.currentPath === path;
+  if (isCurrent && state.mode === "edit" && state.editorDirty) {
+    toast("请先保存或放弃未保存的修改，再删除");
+    return;
+  }
+
+  try {
+    await deleteFile(path);
+    localStorage.removeItem(draftKey(path));
+
+    if (isCurrent) {
+      editor.destroy();
+      state.mode = "read";
+      state.editorDirty = false;
+      state.currentPath = null;
+      state.currentContent = "";
+      ui.editPane.hidden = true;
+      ui.editToolbar.classList.remove("json-mode");
+      ui.scroll.hidden = false;
+      ui.btnEdit.hidden = true;
+      ui.btnEdit.textContent = "编辑";
+      ui.jsonBar.hidden = true;
+      destroyJsonViewer();
+      ui.viewer.hidden = true;
+      ui.viewer.replaceChildren();
+      ui.empty.hidden = false;
+      ui.docTitle.textContent = "开始阅读";
+      ui.statusPath.textContent = "";
+      ui.statusMeta.textContent = "";
+      document.title = "MD Reader";
+      localStorage.removeItem(LAST_FILE_KEY);
+      sidebar.setActive(null);
+    }
+
+    await sidebar.refresh();
+    toast("已删除");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** 编辑模式 JSON 美化 / 压缩 */
+function formatEditorJson(minify: boolean): void {
+  if (!isJsonPath(state.currentPath)) return;
+  const result = formatJson(editor.getText(), minify);
+  if (!result.ok) {
+    toast(`JSON 解析失败：${result.error}`);
+    return;
+  }
+  editor.setText(result.value ?? "");
+  toast(`${minify ? "已压缩" : "已美化"}，Ctrl+S 保存`);
 }
 
 function toggleAutosave(): void {
@@ -531,6 +703,11 @@ function bindEvents(): void {
   ui.btnNew.addEventListener("click", () => void newFile());
   ui.btnAutosave.addEventListener("click", toggleAutosave);
   ui.btnPreviewToggle.addEventListener("click", togglePreview);
+
+  ui.btnJsonToggle.addEventListener("click", toggleJsonRaw);
+  ui.btnJsonCopy.addEventListener("click", () => void copyJson());
+  ui.btnBeautify.addEventListener("click", () => formatEditorJson(false));
+  ui.btnMinify.addEventListener("click", () => formatEditorJson(true));
 
   ui.editToolbar.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-cmd]");

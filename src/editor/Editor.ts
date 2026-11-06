@@ -13,7 +13,10 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching, indentUnit, syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { markdown, markdownLanguage, markdownKeymap } from "@codemirror/lang-markdown";
+import { json } from "@codemirror/lang-json";
 import { tags as t } from "@lezer/highlight";
+
+export type EditorLanguage = "markdown" | "json";
 
 /** 与阅读主题共用 CSS 变量的高亮配色 */
 const highlight = HighlightStyle.define([
@@ -31,6 +34,14 @@ const highlight = HighlightStyle.define([
   { tag: t.processingInstruction, color: "var(--text-faint)" },
 ]);
 
+const jsonHighlight = HighlightStyle.define([
+  { tag: t.propertyName, color: "var(--text-soft)" },
+  { tag: t.string, color: "var(--accent)" },
+  { tag: t.number, color: "var(--text)", fontWeight: "600" },
+  { tag: [t.bool, t.null], color: "var(--text)", fontStyle: "italic" },
+  { tag: [t.punctuation, t.separator], color: "var(--text-faint)" },
+]);
+
 export type ChangeHandler = (text: string) => void;
 
 /** CodeMirror 6 封装：负责编辑器生命周期与文本操作，模式切换由 main.ts 控制 */
@@ -46,9 +57,10 @@ export class Editor {
     this.host = host;
   }
 
-  open(initialText: string): void {
+  open(initialText: string, language: EditorLanguage = "markdown"): void {
     this.destroy();
     const self = this;
+    const isJson = language === "json";
 
     this.view = new EditorView({
       parent: this.host,
@@ -64,10 +76,10 @@ export class Editor {
           crosshairCursor(),
           highlightActiveLine(),
           bracketMatching(),
-          indentUnit.of("    "),
-          EditorState.tabSize.of(4),
-          markdown({ base: markdownLanguage }),
-          syntaxHighlighting(highlight),
+          indentUnit.of(isJson ? "  " : "    "),
+          EditorState.tabSize.of(isJson ? 2 : 4),
+          isJson ? json() : markdown({ base: markdownLanguage }),
+          syntaxHighlighting(isJson ? jsonHighlight : highlight),
           keymap.of([
             {
               key: "Mod-s",
@@ -83,7 +95,7 @@ export class Editor {
                 return true;
               },
             },
-            ...markdownKeymap,
+            ...(language === "markdown" ? markdownKeymap : []),
             ...historyKeymap,
             indentWithTab,
             ...defaultKeymap,

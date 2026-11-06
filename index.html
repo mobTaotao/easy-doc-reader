@@ -29,6 +29,13 @@
         </header>
 
         <div class="viewer-scroll" id="viewer-scroll">
+          <div class="json-bar" id="json-bar" hidden>
+            <span class="json-hint" id="json-hint"></span>
+            <span class="json-actions">
+              <button class="edit-btn" id="btn-json-toggle">查看原文</button>
+              <button class="edit-btn" id="btn-json-copy">复制</button>
+            </span>
+          </div>
           <article class="markdown-body" id="viewer" hidden></article>
           <div class="empty" id="empty">
             <div class="empty-mark">¶</div>
@@ -48,6 +55,8 @@
             <button class="edit-btn" data-cmd="code">代码</button>
             <button class="edit-btn" data-cmd="link">链接</button>
             <button class="edit-btn" data-cmd="image">图片</button>
+            <button class="edit-btn json-only" id="btn-beautify">美化</button>
+            <button class="edit-btn json-only" id="btn-minify">压缩</button>
             <span class="edit-sep"></span>
             <button class="edit-btn primary" id="btn-save">保存</button>
             <button class="edit-btn" id="btn-new">新建</button>

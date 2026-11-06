@@ -6,6 +6,7 @@ use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Emitter, Manager};
 
 const MARKDOWN_EXTS: [&str; 5] = ["md", "markdown", "mdown", "mkd", "txt"];
+const TEXT_EXTS: [&str; 6] = ["md", "markdown", "mdown", "mkd", "txt", "json"];
 const MAX_FILE_SIZE: u64 = 8 * 1024 * 1024;
 
 #[derive(Serialize)]
@@ -29,6 +30,14 @@ fn is_markdown(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| MARKDOWN_EXTS.iter().any(|known| known.eq_ignore_ascii_case(ext)))
+        .unwrap_or(false)
+}
+
+/// 文件树展示与文档操作允许的文本扩展名（含 JSON）
+fn is_supported_text(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| TEXT_EXTS.iter().any(|known| known.eq_ignore_ascii_case(ext)))
         .unwrap_or(false)
 }
 
@@ -64,7 +73,7 @@ fn list_dir(path: String) -> Result<Vec<DirEntryInfo>, String> {
                 path: full_path.to_string_lossy().to_string(),
                 is_dir: true,
             });
-        } else if meta.is_file() && is_markdown(&full_path) {
+        } else if meta.is_file() && is_supported_text(&full_path) {
             entries.push(DirEntryInfo {
                 name,
                 path: full_path.to_string_lossy().to_string(),
@@ -148,8 +157,7 @@ fn write_markdown(path: String, content: String, expected_mtime: Option<u64>) ->
 
 /// 在目录下创建"未命名.md"，自动避免重名，返回新文件完整路径。
 #[tauri::command]
-fn create_markdown(dir: String) -> Result<String, String> {
-    let folder = PathBuf::from(&dir);
+fn create_markdown(dir: String) -> Result<String, String> {    let folder = PathBuf::from(&dir);
     if !folder.is_dir() {
         return Err(format!("目录不存在：{dir}"));
     }
@@ -171,6 +179,52 @@ fn create_markdown(dir: String) -> Result<String, String> {
             return Err("无法创建更多文件".into());
         }
     }
+}
+
+/// 重命名文件：仅允许同目录、白名单扩展名、目标不重名。返回新完整路径。
+#[tauri::command]
+fn rename_file(old_path: String, new_name: String) -> Result<String, String> {
+    let source = PathBuf::from(&old_path);
+    if !source.is_file() {
+        return Err("源文件不存在或已被移动".into());
+    }
+
+    let name = new_name.trim();
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err("文件名不合法".into());
+    }
+
+    let ext = Path::new(name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
+    if !TEXT_EXTS.iter().any(|known| known.eq_ignore_ascii_case(ext)) {
+        return Err(format!("不支持的扩展名：.{ext}"));
+    }
+
+    let target = source
+        .parent()
+        .ok_or_else(|| "无法定位所在目录".to_string())?
+        .join(name);
+    if target.exists() {
+        return Err(format!("已存在同名文件：{name}"));
+    }
+
+    fs::rename(&source, &target).map_err(|err| format!("重命名失败：{err}"))?;
+    Ok(target.to_string_lossy().to_string())
+}
+
+/// 删除文档文件（仅白名单扩展名，防误删其他文件）。
+#[tauri::command]
+fn delete_file(path: String) -> Result<(), String> {
+    let file = PathBuf::from(&path);
+    if !is_supported_text(&file) {
+        return Err("出于安全考虑，仅允许删除文档文件（md/txt/json）".into());
+    }
+    if !file.is_file() {
+        return Err("文件不存在或已被删除".into());
+    }
+    fs::remove_file(&file).map_err(|err| format!("删除失败：{err}"))
 }
 
 #[tauri::command]
@@ -262,7 +316,9 @@ pub fn run() {
             open_external,
             take_pending_launch,
             write_markdown,
-            create_markdown
+            create_markdown,
+            rename_file,
+            delete_file
         ])
         .setup(move |app| {
             app.manage(PendingLaunch(Mutex::new(launch_arg)));
@@ -308,6 +364,36 @@ mod tests {
         let b = create_markdown(dir.to_string_lossy().to_string()).unwrap();
         assert_ne!(a, b);
         assert!(Path::new(&a).is_file() && Path::new(&b).is_file());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rename_and_delete_file() {
+        let dir = temp_dir("mdreader-rename");
+        let file = dir.join("old.md");
+        fs::write(&file, "# hi").unwrap();
+
+        let new_path = rename_file(file.to_string_lossy().to_string(), "新名字.md".into()).unwrap();
+        assert!(Path::new(&new_path).is_file());
+        assert!(!file.exists());
+        assert_eq!(new_path, dir.join("新名字.md").to_string_lossy().to_string());
+
+        // 非白名单扩展名 / 重名 / 跨目录路径应被拒绝
+        let err = rename_file(new_path.clone(), "evil.exe".into()).unwrap_err();
+        assert!(err.contains("不支持的扩展名"));
+        let err = rename_file(new_path.clone(), "新名字.md".into()).unwrap_err();
+        assert!(err.contains("已存在同名文件"));
+        let err = rename_file(new_path.clone(), "..\\escape.md".into()).unwrap_err();
+        assert!(err.contains("不合法"));
+
+        delete_file(new_path).unwrap();
+        assert!(!dir.join("新名字.md").exists());
+
+        // 白名单外的文件不允许删除
+        let exe = dir.join("a.exe");
+        fs::write(&exe, b"MZ").unwrap();
+        assert!(delete_file(exe.to_string_lossy().to_string()).is_err());
+
         let _ = fs::remove_dir_all(&dir);
     }
 }
