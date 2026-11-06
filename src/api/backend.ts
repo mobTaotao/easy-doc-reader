@@ -138,6 +138,51 @@ export async function fileMtime(path: string): Promise<number> {
   return file.lastModified;
 }
 
+/** 保存文件。桌面端走原子写入；浏览器端尝试写回句柄，失败则触发下载。返回新的 mtime。 */
+export async function writeFile(path: string, content: string, expectedMtime: number | null): Promise<number> {
+  if (isTauri()) return invoke<number>("write_markdown", { path, content, expectedMtime });
+
+  const handle = browserState.files.get(path);
+  if (handle?.createWritable) {
+    try {
+      const writer = await handle.createWritable();
+      await writer.write(content);
+      await writer.close();
+      const file: File = await handle.getFile();
+      return file.lastModified;
+    } catch {
+      /* 无写权限时回退到下载 */
+    }
+  }
+
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const anchor = document.createElement("a");
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = path.split("/").pop() ?? "document.md";
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
+  return Date.now();
+}
+
+/** 在目录下新建"未命名.md"，返回完整路径（仅桌面端）。 */
+export async function createFile(dir: string): Promise<string> {
+  if (isTauri()) return invoke<string>("create_markdown", { dir });
+  throw new Error("免安装版不支持新建文件，请使用桌面版");
+}
+
+/** "另存为"对话框（仅桌面端），返回所选路径。 */
+export async function saveFileDialog(defaultName: string): Promise<string | null> {
+  if (isTauri()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const selected = await save({
+      defaultPath: defaultName,
+      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd", "txt"] }],
+    });
+    return typeof selected === "string" ? selected : null;
+  }
+  return null;
+}
+
 export function resolveAssetUrl(absolutePath: string): string {
   if (!isTauri()) return "";
   try {

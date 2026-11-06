@@ -23,6 +23,7 @@
         <header class="toolbar">
           <div class="doc-title" id="doc-title">开始阅读</div>
           <div class="toolbar-actions">
+            <button class="ghost-btn" id="btn-edit" hidden>编辑</button>
             <button class="ghost-btn" id="btn-theme">跟随系统</button>
           </div>
         </header>
@@ -33,6 +34,31 @@
             <div class="empty-mark">¶</div>
             <h1>没有打开任何文档</h1>
             <p>从左侧选择文件，或把 Markdown 文件拖进窗口。</p>
+          </div>
+        </div>
+
+        <div class="edit-pane" id="edit-pane" hidden>
+          <div class="edit-toolbar" id="edit-toolbar">
+            <button class="edit-btn" data-cmd="bold">加粗</button>
+            <button class="edit-btn" data-cmd="italic">斜体</button>
+            <button class="edit-btn" data-cmd="heading">标题</button>
+            <button class="edit-btn" data-cmd="quote">引用</button>
+            <button class="edit-btn" data-cmd="list">列表</button>
+            <button class="edit-btn" data-cmd="task">任务</button>
+            <button class="edit-btn" data-cmd="code">代码</button>
+            <button class="edit-btn" data-cmd="link">链接</button>
+            <button class="edit-btn" data-cmd="image">图片</button>
+            <span class="edit-sep"></span>
+            <button class="edit-btn primary" id="btn-save">保存</button>
+            <button class="edit-btn" id="btn-new">新建</button>
+            <button class="edit-btn" id="btn-autosave">自动保存：关</button>
+            <button class="edit-btn" id="btn-preview-toggle">收起预览</button>
+          </div>
+          <div class="edit-split" id="edit-split">
+            <div class="editor-host" id="editor-host"></div>
+            <div class="edit-preview" id="edit-preview">
+              <article class="markdown-body" id="edit-viewer"></article>
+            </div>
           </div>
         </div>
 

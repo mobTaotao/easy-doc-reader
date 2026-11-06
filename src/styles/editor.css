@@ -1,0 +1,101 @@
+/* ---------------- 编辑模式 ---------------- */
+
+.edit-pane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg);
+}
+
+.edit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.edit-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-soft);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 12.5px;
+  cursor: pointer;
+  line-height: 1.6;
+}
+
+.edit-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.edit-btn.primary {
+  color: var(--accent);
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.edit-btn.primary:hover {
+  background: var(--accent-soft);
+}
+
+.edit-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.edit-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.edit-split.collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.edit-split.collapsed .edit-preview {
+  display: none;
+}
+
+.editor-host {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-host .cm-editor {
+  height: 100%;
+}
+
+.edit-preview {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.edit-preview .markdown-body {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 34px 120px;
+}
+
+/* CodeMirror 细节 */
+.editor-host .cm-editor .cm-line {
+  padding: 0 12px;
+}
+
+.editor-host .cm-tooltip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
