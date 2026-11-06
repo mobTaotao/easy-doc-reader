@@ -48,9 +48,9 @@ export function formatJson(text: string, minify = false): JsonFormatResult {
 
 let readonlyView: EditorView | null = null;
 
-/** 在容器中挂载只读 JSON 查看器（阅读模式），重复调用会先销毁上一个 */
-export function mountJsonViewer(container: HTMLElement, text: string, valid: boolean): void {
-  destroyJsonViewer();
+/** 在容器中挂载只读文本查看器（json 语法高亮 / plain 纯文本），重复调用会先销毁上一个 */
+export function mountTextViewer(container: HTMLElement, text: string, lang: "json" | "plain"): void {
+  destroyTextViewer();
 
   const host = document.createElement("div");
   host.className = "json-host";
@@ -61,7 +61,7 @@ export function mountJsonViewer(container: HTMLElement, text: string, valid: boo
     state: EditorState.create({
       doc: text,
       extensions: [
-        json(),
+        lang === "json" ? json() : [],
         syntaxHighlighting(jsonHighlight),
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
@@ -78,10 +78,9 @@ export function mountJsonViewer(container: HTMLElement, text: string, valid: boo
       ],
     }),
   });
-  host.dataset.valid = valid ? "1" : "0";
 }
 
-export function destroyJsonViewer(): void {
+export function destroyTextViewer(): void {
   readonlyView?.destroy();
   readonlyView = null;
 }

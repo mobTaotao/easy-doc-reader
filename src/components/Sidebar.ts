@@ -3,8 +3,14 @@ import { listDir, type Entry } from "../api/backend";
 export interface SidebarHandlers {
   rename: (path: string, newName: string) => void;
   remove: (path: string) => void;
-  create: (dir: string) => void;
+  create: (dir: string, kind: "md" | "txt" | "json") => void;
 }
+
+const NEW_FILE_KINDS: { label: string; kind: "md" | "txt" | "json" }[] = [
+  { label: "Markdown (.md)", kind: "md" },
+  { label: "文本文件 (.txt)", kind: "txt" },
+  { label: "JSON (.json)", kind: "json" },
+];
 
 function parentOf(path: string): string {
   const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
@@ -87,36 +93,56 @@ export class Sidebar {
   }
 
   private showMenu(entry: Entry | null, x: number, y: number): void {
-    const items: { label: string; run: () => void }[] = [];
+    const items: HTMLElement[] = [];
 
     if (entry && !entry.isDir) {
-      items.push({ label: "重命名", run: () => this.startRename(entry.path) });
-      items.push({ label: "删除", run: () => this.handlers.remove(entry.path) });
+      items.push(
+        this.menuButton("重命名", () => this.startRename(entry.path)),
+        this.menuButton("删除", () => this.handlers.remove(entry.path)),
+      );
     }
 
     const dir = entry ? (entry.isDir ? entry.path : parentOf(entry.path)) : this.rootPath;
-    if (dir) items.push({ label: "新建 Markdown", run: () => this.handlers.create(dir) });
+    if (dir) {
+      items.push(this.submenuItem("新建文件", dir));
+    }
 
-    this.menu.replaceChildren(
-      ...items.map((item) => {
-        const button = document.createElement("button");
-        button.className = "ctx-item";
-        button.textContent = item.label;
-        button.addEventListener("click", (event) => {
-          event.stopPropagation();
-          this.hideMenu();
-          item.run();
-        });
-        return button;
-      }),
-    );
+    this.menu.replaceChildren(...items);
 
     this.menu.style.left = `${Math.min(x, window.innerWidth - 170)}px`;
     this.menu.style.top = `${Math.min(y, window.innerHeight - 120)}px`;
     this.menu.hidden = false;
   }
 
-  private startRename(path: string): void {
+  private menuButton(label: string, run: () => void): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.className = "ctx-item";
+    button.textContent = label;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.hideMenu();
+      run();
+    });
+    return button;
+  }
+
+  /** 带子菜单的"新建文件"项（md / txt / json） */
+  private submenuItem(label: string, dir: string): HTMLDivElement {
+    const wrap = document.createElement("div");
+    wrap.className = "ctx-item ctx-has-sub";
+    wrap.textContent = label;
+
+    const sub = document.createElement("div");
+    sub.className = "ctx-sub";
+    for (const kind of NEW_FILE_KINDS) {
+      sub.append(this.menuButton(kind.label, () => this.handlers.create(dir, kind.kind)));
+    }
+
+    wrap.append(sub);
+    return wrap;
+  }
+
+  startRename(path: string): void {
     this.renamingPath = path;
     this.render();
   }

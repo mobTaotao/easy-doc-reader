@@ -225,6 +225,43 @@ button {
   background: var(--bg-hover);
 }
 
+/* 新建文件子菜单 */
+.ctx-has-sub {
+  position: relative;
+  color: var(--text);
+}
+
+.ctx-has-sub::after {
+  content: "▸";
+  position: absolute;
+  right: 10px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.ctx-has-sub > .ctx-sub {
+  display: none;
+  position: absolute;
+  left: calc(100% + 2px);
+  top: -4px;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.ctx-has-sub:hover > .ctx-sub {
+  display: flex;
+  flex-direction: column;
+}
+
+.ctx-has-sub > .ctx-sub .ctx-item {
+  color: var(--text);
+  white-space: nowrap;
+}
+
 .sidebar-foot {
   padding: 10px 14px;
   border-top: 1px solid var(--border);

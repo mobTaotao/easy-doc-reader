@@ -104,6 +104,12 @@
   display: none;
 }
 
+/* 纯文本（.txt）模式：隐藏 Markdown 与 JSON 专用按钮 */
+.edit-toolbar.plain-mode button[data-cmd],
+.edit-toolbar.plain-mode .json-only {
+  display: none;
+}
+
 .edit-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

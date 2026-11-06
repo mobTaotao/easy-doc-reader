@@ -164,9 +164,9 @@ export async function writeFile(path: string, content: string, expectedMtime: nu
   return Date.now();
 }
 
-/** 在目录下新建"未命名.md"，返回完整路径（仅桌面端）。 */
-export async function createFile(dir: string): Promise<string> {
-  if (isTauri()) return invoke<string>("create_markdown", { dir });
+/** 在目录下新建文档（md/txt/json），返回完整路径（仅桌面端）。 */
+export async function createFile(dir: string, kind: "md" | "txt" | "json" = "md"): Promise<string> {
+  if (isTauri()) return invoke<string>("create_file", { dir, kind });
   throw new Error("免安装版不支持新建文件，请使用桌面版");
 }
 

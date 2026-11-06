@@ -155,23 +155,32 @@ fn write_markdown(path: String, content: String, expected_mtime: Option<u64>) ->
     Ok(modified_ms(&meta))
 }
 
-/// 在目录下创建"未命名.md"，自动避免重名，返回新文件完整路径。
+/// 在目录下创建新文档（md / txt / json），自动避免重名，返回新文件完整路径。
 #[tauri::command]
-fn create_markdown(dir: String) -> Result<String, String> {    let folder = PathBuf::from(&dir);
+fn create_file(dir: String, kind: String) -> Result<String, String> {
+    let folder = PathBuf::from(&dir);
     if !folder.is_dir() {
         return Err(format!("目录不存在：{dir}"));
     }
 
+    let kind = kind.to_lowercase();
+    let (ext, template) = match kind.as_str() {
+        "md" => ("md", "# 未命名\n\n"),
+        "txt" => ("txt", ""),
+        "json" => ("json", "{}\n"),
+        other => return Err(format!("不支持的文件类型：{other}")),
+    };
+
     let mut index: u32 = 1;
     loop {
         let name = if index == 1 {
-            "未命名.md".to_string()
+            format!("未命名.{ext}")
         } else {
-            format!("未命名-{index}.md")
+            format!("未命名-{index}.{ext}")
         };
         let target = folder.join(&name);
         if !target.exists() {
-            fs::write(&target, "# 未命名\n\n").map_err(|err| format!("创建失败：{err}"))?;
+            fs::write(&target, template).map_err(|err| format!("创建失败：{err}"))?;
             return Ok(target.to_string_lossy().to_string());
         }
         index += 1;
@@ -316,7 +325,7 @@ pub fn run() {
             open_external,
             take_pending_launch,
             write_markdown,
-            create_markdown,
+            create_file,
             rename_file,
             delete_file
         ])
@@ -358,12 +367,22 @@ mod tests {
     }
 
     #[test]
-    fn create_markdown_avoids_duplicate() {
+    fn create_file_kinds_and_duplicates() {
         let dir = temp_dir("mdreader-create");
-        let a = create_markdown(dir.to_string_lossy().to_string()).unwrap();
-        let b = create_markdown(dir.to_string_lossy().to_string()).unwrap();
+
+        let a = create_file(dir.to_string_lossy().to_string(), "md".into()).unwrap();
+        let b = create_file(dir.to_string_lossy().to_string(), "md".into()).unwrap();
         assert_ne!(a, b);
-        assert!(Path::new(&a).is_file() && Path::new(&b).is_file());
+        assert_eq!(fs::read_to_string(&a).unwrap(), "# 未命名\n\n");
+
+        let txt = create_file(dir.to_string_lossy().to_string(), "txt".into()).unwrap();
+        assert!(txt.ends_with("未命名.txt"));
+        assert_eq!(fs::read_to_string(&txt).unwrap(), "");
+
+        let json = create_file(dir.to_string_lossy().to_string(), "json".into()).unwrap();
+        assert_eq!(fs::read_to_string(&json).unwrap(), "{}\n");
+
+        assert!(create_file(dir.to_string_lossy().to_string(), "exe".into()).is_err());
         let _ = fs::remove_dir_all(&dir);
     }
 

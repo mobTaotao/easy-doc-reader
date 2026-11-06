@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { Sidebar } from "./components/Sidebar";
-import { Editor } from "./editor/Editor";
+import { Editor, type EditorLanguage } from "./editor/Editor";
 import { renderMarkdown } from "./markdown/render";
 import {
   createFile,
@@ -25,7 +25,7 @@ import {
   saveFileDialog,
   writeFile,
 } from "./api/backend";
-import { destroyJsonViewer, formatJson, mountJsonViewer } from "./json/jsonView";
+import { destroyTextViewer, formatJson, mountTextViewer } from "./json/jsonView";
 import { basename, countText, dirname, joinPath } from "./utils";
 import { SAMPLE_MARKDOWN } from "./sample";
 
@@ -40,6 +40,13 @@ const MARKDOWN_LINK = /\.(md|markdown|mdown|mkd|txt|json)(#.*)?$/i;
 const DOC_EXT = /\.(md|markdown|mdown|mkd|txt|json)$/i;
 
 const isJsonPath = (path: string | null): boolean => Boolean(path && /\.json$/i.test(path));
+
+/** 根据扩展名决定渲染/编辑语言：markdown / json / plain */
+const languageFor = (path: string | null): EditorLanguage => {
+  if (isJsonPath(path)) return "json";
+  if (path && /\.txt$/i.test(path)) return "plain";
+  return "markdown";
+};
 
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -106,7 +113,7 @@ function toast(message: string): void {
 const sidebar = new Sidebar(ui.tree, (path) => void openFile(path), toast, {
   rename: (path, newName) => void handleRename(path, newName),
   remove: (path) => void handleDelete(path),
-  create: (dir) => void newFile(dir),
+  create: (dir, kind) => void newFile(dir, kind),
 });
 
 function slugify(text: string): string {
@@ -130,12 +137,21 @@ function paint(content: string, path: string): void {
   ui.scroll.scrollTop = 0;
   state.currentContent = content;
 
-  if (isJsonPath(path)) {
+  const lang = languageFor(path);
+  if (lang === "json") {
     state.jsonShowRaw = false;
     renderJson(content);
+  } else if (lang === "plain") {
+    // .txt：纯文本视图，不做 Markdown 解析
+    mountTextViewer(ui.viewer, content, "plain");
+    ui.jsonBar.hidden = false;
+    ui.btnJsonToggle.hidden = true;
+    ui.jsonHint.textContent = `纯文本 · ${content ? content.split("\n").length : 0} 行`;
+    ui.jsonHint.classList.remove("invalid");
   } else {
     ui.jsonBar.hidden = true;
-    destroyJsonViewer();
+    ui.btnJsonToggle.hidden = false;
+    destroyTextViewer();
     ui.viewer.innerHTML = renderMarkdown(content);
     decorate(ui.viewer, path);
   }
@@ -148,7 +164,8 @@ function renderJson(raw: string): void {
   const result = formatJson(raw, false);
   const display = state.jsonShowRaw || !result.ok ? raw : (result.value ?? raw);
 
-  mountJsonViewer(ui.viewer, display, result.ok);
+  mountTextViewer(ui.viewer, display, "json");
+  ui.btnJsonToggle.hidden = false;
   ui.jsonBar.hidden = false;
   ui.jsonHint.textContent = result.ok ? "合法 JSON · 已格式化展示" : `解析失败：${result.error}`;
   ui.jsonHint.classList.toggle("invalid", !result.ok);
@@ -313,20 +330,21 @@ function loadIntoEditor(path: string, content: string, mtime: number): void {
   state.savedText = content;
   state.editorDirty = text !== content;
 
-  const json = isJsonPath(path);
-  editor.open(text, json ? "json" : "markdown");
+  const lang = languageFor(path);
+  editor.open(text, lang);
   editor.onChange(onEditorChange);
   editor.onSave(() => void saveEdit());
   editor.onExit(() => void setEditMode(false));
 
-  // JSON 不需要 Markdown 预览，保持单栏编辑
-  ui.editToolbar.classList.toggle("json-mode", json);
-  ui.btnPreviewToggle.hidden = json;
-  ui.editSplit.classList.toggle("collapsed", json || state.previewCollapsed);
+  // JSON / 纯文本不需要 Markdown 预览，保持单栏编辑
+  ui.editToolbar.classList.toggle("json-mode", lang === "json");
+  ui.editToolbar.classList.toggle("plain-mode", lang === "plain");
+  ui.btnPreviewToggle.hidden = lang !== "markdown";
+  ui.editSplit.classList.toggle("collapsed", lang !== "markdown" || state.previewCollapsed);
 
-  if (!json) renderPreview(text);
+  if (lang === "markdown") renderPreview(text);
   updateStatusMeta(text);
-  if (!json) bindEditorScroll();
+  if (lang === "markdown") bindEditorScroll();
   editor.focus();
 }
 
@@ -427,7 +445,7 @@ async function setEditMode(on: boolean): Promise<void> {
   ui.editPane.hidden = true;
   ui.scroll.hidden = false;
   ui.btnEdit.textContent = "编辑";
-  ui.editToolbar.classList.remove("json-mode");
+  ui.editToolbar.classList.remove("json-mode", "plain-mode");
   ui.btnPreviewToggle.hidden = false;
 
   const path = state.currentPath;
@@ -442,7 +460,7 @@ async function setEditMode(on: boolean): Promise<void> {
   }
 }
 
-async function newFile(targetDir?: string): Promise<void> {
+async function newFile(targetDir?: string, kind: "md" | "txt" | "json" = "md"): Promise<void> {
   if (!isTauri()) {
     toast("免安装版不支持新建文件，请使用桌面版");
     return;
@@ -457,7 +475,7 @@ async function newFile(targetDir?: string): Promise<void> {
   }
 
   try {
-    const path = await createFile(dir);
+    const path = await createFile(dir, kind);
     const root = localStorage.getItem(LAST_ROOT_KEY);
     if (root && root === dir) await sidebar.refresh();
     else await openFolderPath(dir);
@@ -468,7 +486,8 @@ async function newFile(targetDir?: string): Promise<void> {
     ui.btnEdit.textContent = "完成";
     await openFile(path);
     editor.focus();
-    toast("已新建 " + basename(path));
+    sidebar.startRename(path);
+    toast("已新建 " + basename(path) + "，输入新文件名后回车");
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
@@ -535,12 +554,12 @@ async function handleDelete(path: string): Promise<void> {
       state.currentPath = null;
       state.currentContent = "";
       ui.editPane.hidden = true;
-      ui.editToolbar.classList.remove("json-mode");
+      ui.editToolbar.classList.remove("json-mode", "plain-mode");
       ui.scroll.hidden = false;
       ui.btnEdit.hidden = true;
       ui.btnEdit.textContent = "编辑";
       ui.jsonBar.hidden = true;
-      destroyJsonViewer();
+      destroyTextViewer();
       ui.viewer.hidden = true;
       ui.viewer.replaceChildren();
       ui.empty.hidden = false;

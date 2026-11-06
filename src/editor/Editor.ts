@@ -16,7 +16,7 @@ import { markdown, markdownLanguage, markdownKeymap } from "@codemirror/lang-mar
 import { json } from "@codemirror/lang-json";
 import { tags as t } from "@lezer/highlight";
 
-export type EditorLanguage = "markdown" | "json";
+export type EditorLanguage = "markdown" | "json" | "plain";
 
 /** 与阅读主题共用 CSS 变量的高亮配色 */
 const highlight = HighlightStyle.define([
@@ -61,6 +61,7 @@ export class Editor {
     this.destroy();
     const self = this;
     const isJson = language === "json";
+    const isPlain = language === "plain";
 
     this.view = new EditorView({
       parent: this.host,
@@ -78,7 +79,7 @@ export class Editor {
           bracketMatching(),
           indentUnit.of(isJson ? "  " : "    "),
           EditorState.tabSize.of(isJson ? 2 : 4),
-          isJson ? json() : markdown({ base: markdownLanguage }),
+          isJson ? json() : isPlain ? [] : markdown({ base: markdownLanguage }),
           syntaxHighlighting(isJson ? jsonHighlight : highlight),
           keymap.of([
             {
