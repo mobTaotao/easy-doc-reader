@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MD Reader</title>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <div class="root-name" id="root-name">未打开文件夹</div>
+          <div class="sidebar-actions">
+            <button class="ghost-btn" id="btn-open-folder">打开文件夹</button>
+            <button class="ghost-btn" id="btn-open-file">打开文件</button>
+          </div>
+        </div>
+        <div class="tree" id="tree"></div>
+        <div class="sidebar-foot">把 .md 文件拖进窗口即可阅读</div>
+      </aside>
+
+      <main class="main">
+        <header class="toolbar">
+          <div class="doc-title" id="doc-title">开始阅读</div>
+          <div class="toolbar-actions">
+            <button class="ghost-btn" id="btn-theme">跟随系统</button>
+          </div>
+        </header>
+
+        <div class="viewer-scroll" id="viewer-scroll">
+          <article class="markdown-body" id="viewer" hidden></article>
+          <div class="empty" id="empty">
+            <div class="empty-mark">¶</div>
+            <h1>没有打开任何文档</h1>
+            <p>从左侧选择文件，或把 Markdown 文件拖进窗口。</p>
+          </div>
+        </div>
+
+        <footer class="statusbar">
+          <span class="status-path" id="status-path"></span>
+          <span class="status-meta" id="status-meta"></span>
+        </footer>
+      </main>
+    </div>
+
+    <div class="drop-hint" id="drop-hint"><span>松开以打开</span></div>
+    <div class="toast" id="toast"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+node_modules
+dist
+portable
+release
+.preview
+src-tauri/target
+src-tauri/gen
+*.log
+MD-Reader.html
+.DS_Store
