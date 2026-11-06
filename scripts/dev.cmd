@@ -13,3 +13,6 @@ set "INCLUDE=%VSDIR%\VC\Tools\MSVC\%MSVCVER%\include;%KITS%\Include\%SDKVER%\ucr
 cd /d "%~dp0.."
 echo === tauri dev start %TIME% ===
 npm run tauri dev
+echo.
+echo === tauri dev exit %ERRORLEVEL% %TIME% ===
+pause

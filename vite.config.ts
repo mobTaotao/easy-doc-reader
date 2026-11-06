@@ -11,6 +11,10 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       strictPort: true,
+      watch: {
+        // tauri dev 时 cargo 会持续写入 target 目录，监听会导致 EBUSY 崩溃
+        ignored: ["**/src-tauri/target/**", "**/release/**", "**/portable/**", "**/dist/**"],
+      },
     },
     build: {
       target: "chrome105",
