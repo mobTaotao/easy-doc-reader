@@ -52,19 +52,21 @@ scripts\build-release.cmd        # 推荐：自动注入 MSVC/SDK 环境变量�
 npm run tauri build
 ```
 
-产物（已随仓库 `release\` 目录提供）：
+## 下载
+
+**Releases 页面**：<https://github.com/mobTaotao/easy-doc-reader/releases>
 
 | 文件 | 大小 | 说明 |
 | --- | --- | --- |
-| `release\md-reader.exe` | 3.45 MB | 绿色单文件，双击即用 |
-| `release\MD Reader_0.4.0_x64-setup.exe` | 1.4 MB | NSIS 安装包（当前用户安装，含 WebView2 引导与文件关联注册） |
-| `MD-Reader.html` | ~330 KB | 免安装单文件网页版（拖入 `.md` 即可阅读） |
+| [`MD-Reader_0.4.0_x64-setup.exe`](https://github.com/mobTaotao/easy-doc-reader/releases/latest) | 1.4 MB | NSIS 安装包（当前用户安装，含 WebView2 引导与文件关联注册） |
+| [`md-reader.exe`](https://github.com/mobTaotao/easy-doc-reader/releases/latest) | 3.45 MB | 绿色单文件，双击即用 |
+| [`MD-Reader.html`](https://github.com/mobTaotao/easy-doc-reader/releases/latest) | ~330 KB | 免安装单文件网页版（拖入 `.md` 即可阅读） |
 
 > 系统架构与外部依赖详见 [架构文档.md](架构文档.md)。
 
 ### 设为系统默认打开方式
 
-1. 运行 `MD Reader_0.1.1_x64-setup.exe` 安装（写入 `HKCU\Software\Classes`，无需管理员）。
+1. 下载并运行安装包（写入 `HKCU\Software\Classes`，无需管理员）。
 2. 若此前从未给 `.md` 设置过默认应用：安装后**双击 md 文件即默认用 MD Reader 打开**（已实测）。
 3. 若之前选过其他软件为默认：右键 `.md` 文件 → 打开方式 → 选择其他应用 → **MD Reader** → 勾选「始终」；
    或 设置 → 应用 → 默认应用 → 按文件类型选择 `.md`。
