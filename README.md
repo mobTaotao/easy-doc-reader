@@ -58,7 +58,7 @@ npm run tauri build
 
 | 文件 | 大小 | 说明 |
 | --- | --- | --- |
-| [`MD-Reader_0.4.0_x64-setup.exe`](https://github.com/mobTaotao/easy-doc-reader/releases/latest) | 1.4 MB | NSIS 安装包（当前用户安装，含 WebView2 引导与文件关联注册） |
+| [`MD-Reader_0.4.1_x64-setup.exe`](https://github.com/mobTaotao/easy-doc-reader/releases/latest) | 1.4 MB | NSIS 安装包（当前用户安装，含 WebView2 引导与文件关联注册） |
 | [`md-reader.exe`](https://github.com/mobTaotao/easy-doc-reader/releases/latest) | 3.45 MB | 绿色单文件，双击即用 |
 | [`MD-Reader.html`](https://github.com/mobTaotao/easy-doc-reader/releases/latest) | ~330 KB | 免安装单文件网页版（拖入 `.md` 即可阅读） |
 

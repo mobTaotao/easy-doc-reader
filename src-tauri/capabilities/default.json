@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "MD Reader 默认权限",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": ["core:default", "dialog:default", "core:window:allow-destroy"]
 }

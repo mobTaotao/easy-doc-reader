@@ -784,9 +784,19 @@ async function boot(): Promise<void> {
     void appWindow.onCloseRequested(async (event) => {
       if (state.mode !== "edit" || !state.editorDirty) return;
       event.preventDefault();
-      const save = window.confirm("有未保存的修改，保存并关闭吗？（取消＝放弃修改并关闭）");
-      if (save) await saveEdit();
-      await appWindow.destroy();
+      try {
+        const save = window.confirm("有未保存的修改，保存并关闭吗？（取消＝放弃修改并关闭）");
+        if (save) await saveEdit();
+      } catch {
+        /* 保存失败也允许关闭，避免卡住窗口 */
+      } finally {
+        state.editorDirty = false;
+        try {
+          await appWindow.destroy();
+        } catch (error) {
+          toast(error instanceof Error ? error.message : String(error));
+        }
+      }
     });
   }
 
